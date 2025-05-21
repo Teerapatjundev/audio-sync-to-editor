@@ -70,56 +70,67 @@ const getTextOffsets = (
   const blocks = Array.from(body.querySelectorAll("p, div"));
 
   let offset = 0;
-  let start = -1;
-  let end = -1;
   let fullText = "";
 
+  // ✅ Map เก็บตำแหน่งเริ่มต้นของ TextNode แต่ละตัว
+  const offsetMap = new Map<Text, number>();
+
+  // ✅ ใช้ TreeWalker เดินหา TextNode จริงจาก container
   const resolveTextNode = (node: Node): Text | null => {
     if (node.nodeType === Node.TEXT_NODE) return node as Text;
+
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
     return walker.nextNode() as Text | null;
   };
 
-  const startContainer = resolveTextNode(range.startContainer);
-  const endContainer = resolveTextNode(range.endContainer);
+  const startTextNode = resolveTextNode(range.startContainer);
+  const endTextNode = resolveTextNode(range.endContainer);
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-
+  for (const block of blocks) {
     const walker = document.createTreeWalker(block as Node, NodeFilter.SHOW_ALL);
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
 
-      // ✅ TextNode
       if (node.nodeType === Node.TEXT_NODE) {
         let text = node.textContent || "";
 
-        if (start === -1 && node === startContainer) {
-          start = offset + range.startOffset;
-        }
+        // ✅ Normalize spacing
+        text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
 
-        if (end === -1 && node === endContainer) {
-          end = offset + range.endOffset;
-        }
+        // ✅ เก็บ offset map
+        offsetMap.set(node as Text, offset);
 
+        // ✅ ใส่ลง fullText และเพิ่ม offset
         fullText += text;
         offset += text.length;
       }
     }
 
-    // ✅ \n\n หลังแต่ละ block (แม้ไม่มี content เช่น &nbsp;)
     fullText += "\n\n";
     offset += 2;
   }
 
-  // ✅ ลบ \n\n สุดท้ายออกถ้าเกิน
   if (fullText.endsWith("\n\n")) {
     fullText = fullText.slice(0, -2);
     offset -= 2;
   }
-  
-  return { start, end, fullText };
+
+  const startOffset =
+    (startTextNode && offsetMap.has(startTextNode)
+      ? offsetMap.get(startTextNode)!
+      : 0) + range.startOffset;
+
+  const endOffset =
+    (endTextNode && offsetMap.has(endTextNode)
+      ? offsetMap.get(endTextNode)!
+      : 0) + range.endOffset;
+
+  return {
+    start: startOffset,
+    end: endOffset,
+    fullText,
+  };
 };
 
 export const EditorTinyAudioSync = observer(
@@ -137,10 +148,10 @@ export const EditorTinyAudioSync = observer(
     const editorRef = useRef<any>(null);
 
     const handleEditorChange = (content: any, editor: any) => {
-      const contents = editor.getContent( { format: "html" });
+      const contents = editor.getContent({ format: "html" });
       const newPlainText = editor.getContent({ format: "text" });
-      console.log('contents:', contents);
-      
+      console.log("contents:", contents);
+
       const oldText = plainText;
       const newText = newPlainText;
 
