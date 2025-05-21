@@ -127,26 +127,41 @@ const getTextOffsets = (
       ? offsetMap.get(endTextNode)!
       : 0) + range.endOffset;
 
-  const sliced = fullText.slice(start, end);
   const selected = range.toString();
+  const adjusted = adjustOffsetsByContent(fullText, start, end, selected);
 
-  // ลบ invisible char แล้วเทียบ
-  const normalize = (str: string) =>
-    str.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "").trim();
+  return {
+    start: adjusted.start,
+    end: adjusted.end,
+    fullText,
+  };
+};
 
-  if (normalize(sliced) === normalize(selected) && sliced !== selected) {
-    const leadingRemoved = sliced.length - sliced.trimStart().length;
-    const trailingRemoved = sliced.length - sliced.trimEnd().length;
+function adjustOffsetsByContent(
+  fullText: string,
+  start: number,
+  end: number,
+  expected: string
+): { start: number; end: number } {
+  let slice = fullText.slice(start, end);
 
+  // ลบ invisible char สำหรับเทียบ
+  const normalize = (s: string) =>
+    s.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "");
+
+  const normalizedSlice = normalize(slice);
+  const normalizedExpected = normalize(expected);
+
+  if (normalizedSlice.includes(normalizedExpected)) {
+    const leading = normalizedSlice.indexOf(normalizedExpected);
     return {
-      start: start + leadingRemoved,
-      end: end - trailingRemoved,
-      fullText,
+      start: start + leading,
+      end: start + leading + expected.length,
     };
   }
 
-  return { start, end, fullText };
-};
+  return { start, end }; // fallback
+}
 
 export const EditorTinyAudioSync = observer(
   (props: AudioSyncTextEditorProps) => {
