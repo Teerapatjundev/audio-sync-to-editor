@@ -10,8 +10,6 @@ export default function Home() {
   >([]);
   const [textColor, setTextColor] = useState("#000000");
   const [textHighlight, setTextHighlight] = useState("#ecf00a");
-  console.log("plainText", plainText);
-  console.log("highlightedRanges", highlightedRanges);
 
   return (
     <main className="bg-white flex min-h-screen flex-col items-center justify-between p-24">

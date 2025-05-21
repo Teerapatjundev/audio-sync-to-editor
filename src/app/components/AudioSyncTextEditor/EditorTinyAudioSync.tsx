@@ -65,16 +65,28 @@ const mergeHighlightRanges = (
 const getTextOffsets = (
   editor: any,
   range: Range
-): { start: number; end: number } => {
+): { start: number; end: number; fullText: string } => {
   const body = editor.getBody();
-  const blockNodes = Array.from(body.querySelectorAll("p, div"));
+  const blocks = Array.from(body.querySelectorAll("p, div"));
 
   let offset = 0;
   let start = -1;
   let end = -1;
+  let fullText = "";
 
-  for (let i = 0; i < blockNodes.length; i++) {
-    const block = blockNodes[i];
+  let startContainer = range.startContainer;
+  let endContainer = range.endContainer;
+
+  if (startContainer.nodeType !== Node.TEXT_NODE && startContainer.firstChild) {
+    startContainer = startContainer.firstChild;
+  }
+  if (endContainer.nodeType !== Node.TEXT_NODE && endContainer.firstChild) {
+    endContainer = endContainer.firstChild;
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+
     const walker = document.createTreeWalker(
       block as Node,
       NodeFilter.SHOW_TEXT
@@ -82,23 +94,33 @@ const getTextOffsets = (
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
+      if (node.nodeType !== Node.TEXT_NODE) continue;
 
-      if (node === range.startContainer) {
+      const text = node.textContent || "";
+
+      if (start === -1 && node === startContainer) {
         start = offset + range.startOffset;
       }
-      if (node === range.endContainer) {
+      if (end === -1 && node === endContainer) {
         end = offset + range.endOffset;
       }
 
-      offset += node.textContent?.length || 0;
+      fullText += text;
+      offset += text.length;
     }
 
-    if (i < blockNodes.length - 1) {
-      offset += 2;
-    }
+    // ✅ เพิ่ม \n\n ระหว่าง block (หลังจบ block)
+    fullText += "\n\n";
+    offset += 2;
   }
 
-  return { start, end };
+  // ตัด \n\n ส่วนท้าย
+  if (fullText.endsWith("\n\n")) {
+    fullText = fullText.slice(0, -2);
+    offset -= 2;
+  }
+
+  return { start, end, fullText };
 };
 
 export const EditorTinyAudioSync = observer(
@@ -116,6 +138,8 @@ export const EditorTinyAudioSync = observer(
     const editorRef = useRef<any>(null);
 
     const handleEditorChange = (content: any, editor: any) => {
+      const contents = editor.getContent({ format: "html" }); // หรือ 'raw'
+
       const newPlainText = editor.getContent({ format: "text" });
 
       const oldText = plainText;

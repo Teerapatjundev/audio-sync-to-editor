@@ -81,11 +81,11 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     }
   };
 
-  const speakText = () => {
-    const ranges = props.params.highlightedRanges;
-    const text = props.params.plainText;
-
-    if (ranges.length === 0) return;
+  const speakHighlighted = (
+    ranges: { start: number; end: number }[],
+    text: string
+  ) => {
+    if (!ranges.length) return;
 
     let index = 0;
 
@@ -97,15 +97,16 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
       }
 
       const { start, end } = ranges[index];
-      const word = text.slice(start, end);
       setCurrentSpeakingIndex(index);
-
-      const utterance = new SpeechSynthesisUtterance(word);
-      utterance.lang = detectLanguage(word);
-      utterance.onend = () => {
-        index += 1;
+      const chunk = text.slice(start, end).trim();
+      if (!chunk) {
+        index++;
         speakNext();
-      };
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      utterance.lang = detectLanguage(chunk);
 
       const voices = window.speechSynthesis.getVoices();
       const voice =
@@ -113,14 +114,19 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           (v) => v.lang === utterance.lang && v.name.includes("Google")
         ) ||
         voices.find((v) => v.lang === utterance.lang) ||
-        voices.find((v) => v.lang.startsWith(utterance.lang.split("-")[0])) ||
         voices[0];
-
       if (voice) utterance.voice = voice;
+
+      utterance.onend = () => {
+        index++;
+        speakNext();
+      };
+
       window.speechSynthesis.speak(utterance);
     };
-    window.speechSynthesis.cancel();
-    speakNext();
+
+    window.speechSynthesis.cancel(); // เคลียร์คำพูดก่อนหน้า
+    speakNext(); // เริ่มพูด
   };
 
   function getComputedInlineStyleFromAncestors(node: Node): string {
@@ -365,7 +371,10 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
         <button
           onClick={() => {
             setIsSpeakingAllWord(true);
-            speakText();
+            speakHighlighted(
+              props.params.highlightedRanges,
+              props.params.plainText
+            );
           }}
           disabled={props.params.highlightedRanges.length <= 0}
           style={{
