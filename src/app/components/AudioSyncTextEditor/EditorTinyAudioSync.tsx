@@ -71,14 +71,11 @@ const getTextOffsets = (
 
   let offset = 0;
   let fullText = "";
-
-  // ✅ Map เก็บตำแหน่งเริ่มต้นของ TextNode แต่ละตัว
   const offsetMap = new Map<Text, number>();
 
-  // ✅ ใช้ TreeWalker เดินหา TextNode จริงจาก container
+  // ✅ เดินหา TextNode ที่แท้จริง จาก startContainer/endContainer
   const resolveTextNode = (node: Node): Text | null => {
     if (node.nodeType === Node.TEXT_NODE) return node as Text;
-
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
     return walker.nextNode() as Text | null;
   };
@@ -86,8 +83,12 @@ const getTextOffsets = (
   const startTextNode = resolveTextNode(range.startContainer);
   const endTextNode = resolveTextNode(range.endContainer);
 
+  // ✅ เดิน TextNode ทั้งหมด และเก็บ offset + fullText
   for (const block of blocks) {
-    const walker = document.createTreeWalker(block as Node, NodeFilter.SHOW_ALL);
+    const walker = document.createTreeWalker(
+      block as Node,
+      NodeFilter.SHOW_ALL
+    );
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
@@ -98,39 +99,48 @@ const getTextOffsets = (
         // ✅ Normalize spacing
         text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
 
-        // ✅ เก็บ offset map
         offsetMap.set(node as Text, offset);
-
-        // ✅ ใส่ลง fullText และเพิ่ม offset
         fullText += text;
         offset += text.length;
       }
     }
 
+    // ✅ เว้นบรรทัดระหว่าง block
     fullText += "\n\n";
     offset += 2;
   }
 
+  // ✅ ตัด \n\n ส่วนสุดท้าย
   if (fullText.endsWith("\n\n")) {
     fullText = fullText.slice(0, -2);
     offset -= 2;
   }
 
-  const startOffset =
+  // ✅ คำนวณ offset
+  const start =
     (startTextNode && offsetMap.has(startTextNode)
       ? offsetMap.get(startTextNode)!
       : 0) + range.startOffset;
 
-  const endOffset =
+  const end =
     (endTextNode && offsetMap.has(endTextNode)
       ? offsetMap.get(endTextNode)!
       : 0) + range.endOffset;
 
-  return {
-    start: startOffset,
-    end: endOffset,
-    fullText,
-  };
+  // ✅ FIX: iOS Safari มักรวม space ข้างหน้ามาด้วย
+  const slice = fullText.slice(start, end);
+  const selected = range.toString();
+
+  if (slice !== selected && slice.trimStart() === selected.trim()) {
+    const diff = slice.length - slice.trimStart().length;
+    return {
+      start: start + diff,
+      end,
+      fullText,
+    };
+  }
+
+  return { start, end, fullText };
 };
 
 export const EditorTinyAudioSync = observer(
