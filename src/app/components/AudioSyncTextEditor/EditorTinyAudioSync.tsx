@@ -127,18 +127,15 @@ const getTextOffsets = (
       ? offsetMap.get(endTextNode)!
       : 0) + range.endOffset;
 
-  // ✅ FIX: iOS Safari มักรวม space หรือ linebreak พิเศษมาด้วย
-  const rawSlice = fullText.slice(start, end);
+  const sliced = fullText.slice(start, end);
   const selected = range.toString();
 
-  const leadingSpacePattern = /^[\s\u00A0\u200B\u202F\r\n]+/;
-  const match = rawSlice.match(leadingSpacePattern);
+  // ลบ invisible char ทั้งหมด แล้วเทียบ
+  const normalize = (str: string) =>
+    str.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "").trim();
 
-  if (
-    rawSlice !== selected &&
-    rawSlice.replace(leadingSpacePattern, "") === selected.trim()
-  ) {
-    const diff = match?.[0]?.length || 0;
+  if (normalize(sliced) === normalize(selected) && sliced !== selected) {
+    const diff = sliced.length - normalize(sliced).length;
     return {
       start: start + diff,
       end,
