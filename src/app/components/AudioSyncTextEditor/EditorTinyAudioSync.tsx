@@ -119,8 +119,6 @@ export const EditorTinyAudioSync = observer(
     const handleEditorChange = (content: any, editor: any) => {
       const contents = editor.getContent({ format: "html" });
       const newPlainText = editor.getContent({ format: "text" });
-      console.log("contents:", contents);
-
       const oldText = plainText;
       const newText = newPlainText;
 
@@ -190,8 +188,10 @@ export const EditorTinyAudioSync = observer(
 
       if (!selectedText.trim()) return;
 
-      const { start, end } = getTextOffsets(editor, range);
-
+      const { start, end,fullText } = getTextOffsets(editor, range);
+      console.log('fullText:',fullText);
+      setPlainText(fullText);
+      
       // ครอบทั้ง editor (เช่น Ctrl + A)
       const isSelectAll = selectedText.trim() === fullPlainText.trim();
 
