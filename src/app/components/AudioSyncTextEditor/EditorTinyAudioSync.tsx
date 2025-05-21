@@ -69,21 +69,8 @@ const getTextOffsets = (
   const body = editor.getBody();
   const blocks = Array.from(body.querySelectorAll("p, div"));
 
-  let offset = 0;
   let fullText = "";
-  const offsetMap = new Map<Text, number>();
 
-  // ✅ เดินหา TextNode ที่แท้จริง จาก startContainer/endContainer
-  const resolveTextNode = (node: Node): Text | null => {
-    if (node.nodeType === Node.TEXT_NODE) return node as Text;
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-    return walker.nextNode() as Text | null;
-  };
-
-  const startTextNode = resolveTextNode(range.startContainer);
-  const endTextNode = resolveTextNode(range.endContainer);
-
-  // ✅ เดิน TextNode ทั้งหมด และเก็บ offset + fullText
   for (const block of blocks) {
     const walker = document.createTreeWalker(
       block as Node,
@@ -95,73 +82,29 @@ const getTextOffsets = (
 
       if (node.nodeType === Node.TEXT_NODE) {
         let text = node.textContent || "";
-
-        // ✅ Normalize spacing
         text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-
-        offsetMap.set(node as Text, offset);
         fullText += text;
-        offset += text.length;
       }
     }
 
-    // ✅ เว้นบรรทัดระหว่าง block
     fullText += "\n\n";
-    offset += 2;
   }
 
-  // ✅ ตัด \n\n ส่วนสุดท้าย
+  // ตัด \n\n ท้าย
   if (fullText.endsWith("\n\n")) {
     fullText = fullText.slice(0, -2);
-    offset -= 2;
   }
 
-  // ✅ คำนวณ offset
-  const start =
-    (startTextNode && offsetMap.has(startTextNode)
-      ? offsetMap.get(startTextNode)!
-      : 0) + range.startOffset;
+  const selectedText = range
+    .toString()
+    .replace(/\u00A0/g, " ")
+    .replace(/\u200B/g, "");
 
-  const end =
-    (endTextNode && offsetMap.has(endTextNode)
-      ? offsetMap.get(endTextNode)!
-      : 0) + range.endOffset;
+  const start = fullText.indexOf(selectedText);
+  const end = start + selectedText.length;
 
-  const selected = range.toString();
-  const adjusted = adjustOffsetsByContent(fullText, start, end, selected);
-
-  return {
-    start: adjusted.start,
-    end: adjusted.end,
-    fullText,
-  };
+  return { start, end, fullText };
 };
-
-function adjustOffsetsByContent(
-  fullText: string,
-  start: number,
-  end: number,
-  expected: string
-): { start: number; end: number } {
-  let slice = fullText.slice(start, end);
-
-  // ลบ invisible char สำหรับเทียบ
-  const normalize = (s: string) =>
-    s.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "");
-
-  const normalizedSlice = normalize(slice);
-  const normalizedExpected = normalize(expected);
-
-  if (normalizedSlice.includes(normalizedExpected)) {
-    const leading = normalizedSlice.indexOf(normalizedExpected);
-    return {
-      start: start + leading,
-      end: start + leading + expected.length,
-    };
-  }
-
-  return { start, end }; // fallback
-}
 
 export const EditorTinyAudioSync = observer(
   (props: AudioSyncTextEditorProps) => {
