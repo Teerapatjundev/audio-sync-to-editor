@@ -74,52 +74,51 @@ const getTextOffsets = (
   let end = -1;
   let fullText = "";
 
-  let startContainer = range.startContainer;
-  let endContainer = range.endContainer;
+  const resolveTextNode = (node: Node): Text | null => {
+    if (node.nodeType === Node.TEXT_NODE) return node as Text;
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    return walker.nextNode() as Text | null;
+  };
 
-  if (startContainer.nodeType !== Node.TEXT_NODE && startContainer.firstChild) {
-    startContainer = startContainer.firstChild;
-  }
-  if (endContainer.nodeType !== Node.TEXT_NODE && endContainer.firstChild) {
-    endContainer = endContainer.firstChild;
-  }
+  const startContainer = resolveTextNode(range.startContainer);
+  const endContainer = resolveTextNode(range.endContainer);
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
 
-    const walker = document.createTreeWalker(
-      block as Node,
-      NodeFilter.SHOW_TEXT
-    );
+    const walker = document.createTreeWalker(block as Node, NodeFilter.SHOW_ALL);
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (node.nodeType !== Node.TEXT_NODE) continue;
 
-      const text = node.textContent || "";
+      // ✅ TextNode
+      if (node.nodeType === Node.TEXT_NODE) {
+        let text = node.textContent || "";
 
-      if (start === -1 && node === startContainer) {
-        start = offset + range.startOffset;
+        if (start === -1 && node === startContainer) {
+          start = offset + range.startOffset;
+        }
+
+        if (end === -1 && node === endContainer) {
+          end = offset + range.endOffset;
+        }
+
+        fullText += text;
+        offset += text.length;
       }
-      if (end === -1 && node === endContainer) {
-        end = offset + range.endOffset;
-      }
-
-      fullText += text;
-      offset += text.length;
     }
 
-    // ✅ เพิ่ม \n\n ระหว่าง block (หลังจบ block)
+    // ✅ \n\n หลังแต่ละ block (แม้ไม่มี content เช่น &nbsp;)
     fullText += "\n\n";
     offset += 2;
   }
 
-  // ตัด \n\n ส่วนท้าย
+  // ✅ ลบ \n\n สุดท้ายออกถ้าเกิน
   if (fullText.endsWith("\n\n")) {
     fullText = fullText.slice(0, -2);
     offset -= 2;
   }
-
+  
   return { start, end, fullText };
 };
 
@@ -138,8 +137,10 @@ export const EditorTinyAudioSync = observer(
     const editorRef = useRef<any>(null);
 
     const handleEditorChange = (content: any, editor: any) => {
+      const contents = editor.getContent( { format: "html" });
       const newPlainText = editor.getContent({ format: "text" });
-
+      console.log('contents:', contents);
+      
       const oldText = plainText;
       const newText = newPlainText;
 
