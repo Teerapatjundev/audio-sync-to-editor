@@ -130,15 +130,17 @@ const getTextOffsets = (
   const sliced = fullText.slice(start, end);
   const selected = range.toString();
 
-  // ลบ invisible char ทั้งหมด แล้วเทียบ
+  // ลบ invisible char แล้วเทียบ
   const normalize = (str: string) =>
     str.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "").trim();
 
   if (normalize(sliced) === normalize(selected) && sliced !== selected) {
-    const diff = sliced.length - normalize(sliced).length;
+    const leadingRemoved = sliced.length - sliced.trimStart().length;
+    const trailingRemoved = sliced.length - sliced.trimEnd().length;
+
     return {
-      start: start + diff,
-      end,
+      start: start + leadingRemoved,
+      end: end - trailingRemoved,
       fullText,
     };
   }
