@@ -69,7 +69,18 @@ const getTextOffsets = (
   const body = editor.getBody();
   const blocks = Array.from(body.querySelectorAll("p, div"));
 
+  let offset = 0;
   let fullText = "";
+  const offsetMap = new Map<Text, number>();
+
+  const resolveTextNode = (node: Node): Text | null => {
+    if (node.nodeType === Node.TEXT_NODE) return node as Text;
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    return walker.nextNode() as Text | null;
+  };
+
+  const startTextNode = resolveTextNode(range.startContainer);
+  const endTextNode = resolveTextNode(range.endContainer);
 
   for (const block of blocks) {
     const walker = document.createTreeWalker(
@@ -83,27 +94,60 @@ const getTextOffsets = (
       if (node.nodeType === Node.TEXT_NODE) {
         let text = node.textContent || "";
         text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+        offsetMap.set(node as Text, offset);
         fullText += text;
+        offset += text.length;
+      }
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node as Element).tagName === "BR"
+      ) {
+        fullText += "\n";
+        offset += 1;
       }
     }
 
     fullText += "\n\n";
+    offset += 2;
   }
 
-  // ตัด \n\n ท้าย
   if (fullText.endsWith("\n\n")) {
     fullText = fullText.slice(0, -2);
+    offset -= 2;
   }
 
-  const selectedText = range
-    .toString()
-    .replace(/\u00A0/g, " ")
-    .replace(/\u200B/g, "");
+  const rawStart =
+    (startTextNode && offsetMap.has(startTextNode)
+      ? offsetMap.get(startTextNode)!
+      : 0) + range.startOffset;
 
-  const start = fullText.indexOf(selectedText);
-  const end = start + selectedText.length;
+  const rawEnd =
+    (endTextNode && offsetMap.has(endTextNode)
+      ? offsetMap.get(endTextNode)!
+      : 0) + range.endOffset;
 
-  return { start, end, fullText };
+  // ✅ match actual string in fullText
+  const selected = range.toString().trim();
+  const normalized = (s: string) =>
+    s.replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "");
+
+  const normText = normalized(fullText);
+  const normSelect = normalized(selected);
+  const matchIndex = normText.indexOf(normSelect);
+
+  if (matchIndex !== -1) {
+    const before = fullText.slice(0, matchIndex);
+    const adjustedStart = before.length;
+    const adjustedEnd = adjustedStart + selected.length;
+
+    return {
+      start: adjustedStart,
+      end: adjustedEnd,
+      fullText,
+    };
+  }
+
+  return { start: rawStart, end: rawEnd, fullText };
 };
 
 export const EditorTinyAudioSync = observer(
