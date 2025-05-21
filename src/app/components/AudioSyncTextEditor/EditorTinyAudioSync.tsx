@@ -127,12 +127,18 @@ const getTextOffsets = (
       ? offsetMap.get(endTextNode)!
       : 0) + range.endOffset;
 
-  // ✅ FIX: iOS Safari มักรวม space ข้างหน้ามาด้วย
-  const slice = fullText.slice(start, end);
+  // ✅ FIX: iOS Safari มักรวม space หรือ linebreak พิเศษมาด้วย
+  const rawSlice = fullText.slice(start, end);
   const selected = range.toString();
 
-  if (slice !== selected && slice.trimStart() === selected.trim()) {
-    const diff = slice.length - slice.trimStart().length;
+  const leadingSpacePattern = /^[\s\u00A0\u200B\u202F\r\n]+/;
+  const match = rawSlice.match(leadingSpacePattern);
+
+  if (
+    rawSlice !== selected &&
+    rawSlice.replace(leadingSpacePattern, "") === selected.trim()
+  ) {
+    const diff = match?.[0]?.length || 0;
     return {
       start: start + diff,
       end,
