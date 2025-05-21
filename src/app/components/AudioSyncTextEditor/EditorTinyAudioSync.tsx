@@ -138,8 +138,6 @@ export const EditorTinyAudioSync = observer(
     const editorRef = useRef<any>(null);
 
     const handleEditorChange = (content: any, editor: any) => {
-      const contents = editor.getContent({ format: "html" }); // หรือ 'raw'
-
       const newPlainText = editor.getContent({ format: "text" });
 
       const oldText = plainText;
