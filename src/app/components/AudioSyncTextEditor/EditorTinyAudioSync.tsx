@@ -98,13 +98,6 @@ const getTextOffsets = (
         fullText += text;
         offset += text.length;
       }
-      if (
-        node.nodeType === Node.ELEMENT_NODE &&
-        (node as Element).tagName === "BR"
-      ) {
-        fullText += "\n";
-        offset += 1;
-      }
     }
 
     fullText += "\n\n";
