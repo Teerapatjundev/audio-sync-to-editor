@@ -61,6 +61,7 @@ const mergeHighlightRanges = (
   newRanges.push({ start, end });
   return newRanges.sort((a, b) => a.start - b.start);
 };
+
 const extractTextFromRange = (range: Range): string => {
   const fragment = range.cloneContents();
 
