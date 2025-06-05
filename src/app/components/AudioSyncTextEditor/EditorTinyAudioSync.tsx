@@ -61,6 +61,40 @@ const mergeHighlightRanges = (
   newRanges.push({ start, end });
   return newRanges.sort((a, b) => a.start - b.start);
 };
+const extractTextFromRange = (range: Range): string => {
+  const fragment = range.cloneContents();
+
+  const blocks = fragment.querySelectorAll("p, div");
+  
+  const blockElements = blocks.length ? Array.from(blocks) : [fragment];
+  
+  let result = "";
+
+  for (let i = 0; i < blockElements.length; i++) {
+    const block = blockElements[i];
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_ALL);
+
+    let blockText = "";
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        let text = node.textContent || "";
+        text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+        blockText += text;
+      }
+    }
+
+    result += blockText;
+
+    if (i < blockElements.length - 1) {
+      result += "\n\n";
+    }
+  }
+
+  return result;
+};
 
 const getTextOffsets = (
   editor: any,
@@ -70,32 +104,35 @@ const getTextOffsets = (
   const blocks = Array.from(body.querySelectorAll("p, div"));
 
   let fullText = "";
-  for (const block of blocks) {
-    const walker = document.createTreeWalker(block as Node, NodeFilter.SHOW_ALL);
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const walker = document.createTreeWalker(
+      block as Node,
+      NodeFilter.SHOW_ALL
+    );
+
+    let blockText = "";
+
     while (walker.nextNode()) {
       const node = walker.currentNode;
 
       if (node.nodeType === Node.TEXT_NODE) {
         let text = node.textContent || "";
         text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-        fullText += text;
+        blockText += text;
       }
     }
 
-    fullText += "\n\n";
+    fullText += blockText;
+
+    if (i < blocks.length - 1) {
+      fullText += "\n\n";
+    }
   }
 
-  if (fullText.endsWith("\n\n")) {
-    fullText = fullText.slice(0, -2);
-  }
-
-  // ✅ ใช้ text ที่ user เลือกจริง แล้วหาตำแหน่งใน fullText
-  const selected = range
-    .toString()
-    .replace(/\u00A0/g, " ")
-    .replace(/\u200B/g, "");
-
-  // ✅ Match exact offset
+  // ✅ normalize selection
+  const selected = extractTextFromRange(range);
   const start = fullText.indexOf(selected);
   const end = start + selected.length;
 
@@ -118,6 +155,7 @@ export const EditorTinyAudioSync = observer(
 
     const handleEditorChange = (content: any, editor: any) => {
       const newPlainText = editor.getContent({ format: "text" });
+
       const oldText = plainText;
       const newText = newPlainText;
 
@@ -173,6 +211,13 @@ export const EditorTinyAudioSync = observer(
       setHighlightedRanges(updatedRanges);
       setPlainText(newPlainText);
       setContentEditor(content);
+
+      // audioSyncPinStore.setHighlightRanges(updatedRanges);
+      // audioSyncPinStore.setPlainText(newPlainText);
+      // audioSyncPinStore.setPinAudioSyncContent(content);
+
+      // audioSyncPinStore.setTextColor(editor.getBody().style.color);
+      // audioSyncPinStore.setHighlightColor(editor.getBody().style.background);
     };
 
     const handleConfirmHighlight = () => {
@@ -187,9 +232,9 @@ export const EditorTinyAudioSync = observer(
 
       if (!selectedText.trim()) return;
 
-      const { start, end,fullText } = getTextOffsets(editor, range);
-      setPlainText(fullText);
-      
+      const { start, end, fullText } = getTextOffsets(editor, range);
+      // setPlainText(fullText);
+
       // ครอบทั้ง editor (เช่น Ctrl + A)
       const isSelectAll = selectedText.trim() === fullPlainText.trim();
 

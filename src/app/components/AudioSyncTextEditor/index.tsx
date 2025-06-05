@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { EditorTinyAudioSync } from "./EditorTinyAudioSync";
 import { observer } from "mobx-react-lite";
+import { RedoOutlined } from "@ant-design/icons";
 
 interface AudioSyncTextEditorProps {
   params: {
@@ -36,98 +37,82 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
   const detectLanguage = (_text: string): string => {
     return "en-US";
   };
+  const cleanedPlainText = props.params.plainText.replace(/\r\n/g, "\n");
 
-  const speakContent = (textToSpeak: string) => {
-    if (!textToSpeak) return;
+  const speakTextOnly = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = detectLanguage(text);
 
-    const lang = detectLanguage(textToSpeak);
-    const synth = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = lang;
+    const charRanges = getWordCharRanges(text);
 
-    const getBestVoice = (voices: SpeechSynthesisVoice[], lang: string) => {
-      return (
-        voices.find(
-          (voice) => voice.lang === lang && voice.name.includes("Google")
-        ) ||
-        voices.find((voice) => voice.lang === lang) ||
-        voices.find((voice) => voice.lang.startsWith(lang.split("-")[0])) ||
-        voices[0]
-      );
+    utterance.onboundary = (event) => {
+      if (event.name === "word") {
+        const charIndex = event.charIndex;
+        const wordIndex = charRanges.findIndex(
+          ({ start, end }) => charIndex >= start && charIndex < end
+        );
+        if (wordIndex !== -1) {
+          setCurrentSpeakingIndex(wordIndex);
+        }
+      }
     };
 
-    const speakWithVoices = () => {
-      const voices = synth.getVoices();
-      const bestVoice = getBestVoice(voices, lang);
-      if (bestVoice) utterance.voice = bestVoice;
-      synth.speak(utterance);
-    };
-
-    // Safari fallback: use timeout if voices not yet available
-    if (synth.getVoices().length === 0) {
-      // Try both onvoiceschanged AND timeout fallback
-      let tried = false;
-
-      const tryOnce = () => {
-        if (tried) return;
-        tried = true;
-        speakWithVoices();
-      };
-
-      synth.onvoiceschanged = tryOnce;
-      setTimeout(tryOnce, 300);
-    } else {
-      speakWithVoices();
-    }
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
   };
 
-  const speakHighlighted = (
+  const speakWithHighlight = (
     ranges: { start: number; end: number }[],
     text: string
   ) => {
-    if (!ranges.length) return;
+    const slicedParts = ranges.map(({ start, end }) => text.slice(start, end));
+    const highlightedText = slicedParts.join(" ");
 
-    let index = 0;
+    const utterance = new SpeechSynthesisUtterance(highlightedText);
+    utterance.lang = detectLanguage(highlightedText);
 
-    const speakNext = () => {
-      if (index >= ranges.length) {
-        setCurrentSpeakingIndex(null);
-        setIsSpeakingAllWord(false);
-        return;
+    const charRanges = getWordCharRanges(highlightedText);
+
+    let rangeWordMap: number[] = [];
+    slicedParts.forEach((part, rangeIndex) => {
+      const wordCount = part.trim().split(/\s+/).length;
+      for (let i = 0; i < wordCount; i++) {
+        rangeWordMap.push(rangeIndex);
       }
+    });
 
-      const { start, end } = ranges[index];
-      setCurrentSpeakingIndex(index);
-      const chunk = text.slice(start, end).trim();
-      if (!chunk) {
-        index++;
-        speakNext();
-        return;
+    utterance.onboundary = (event) => {
+      if (event.name === "word") {
+        const charIndex = event.charIndex;
+        const wordIndex = charRanges.findIndex(
+          ({ start, end }) => charIndex >= start && charIndex < end
+        );
+
+        if (wordIndex !== -1 && wordIndex < rangeWordMap.length) {
+          const rangeIndex = rangeWordMap[wordIndex];
+          setCurrentSpeakingIndex(rangeIndex);
+        }
       }
-
-      const utterance = new SpeechSynthesisUtterance(chunk);
-      utterance.lang = detectLanguage(chunk);
-
-      const voices = window.speechSynthesis.getVoices();
-      const voice =
-        voices.find(
-          (v) => v.lang === utterance.lang && v.name.includes("Google")
-        ) ||
-        voices.find((v) => v.lang === utterance.lang) ||
-        voices[0];
-      if (voice) utterance.voice = voice;
-
-      utterance.onend = () => {
-        index++;
-        speakNext();
-      };
-
-      window.speechSynthesis.speak(utterance);
     };
 
-    window.speechSynthesis.cancel(); // เคลียร์คำพูดก่อนหน้า
-    speakNext(); // เริ่มพูด
+    utterance.onend = () => {
+      setIsSpeakingAllWord(false);
+      setCurrentSpeakingIndex(null);
+    };
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
   };
+
+  function getWordCharRanges(text: string): { start: number; end: number }[] {
+    const ranges: { start: number; end: number }[] = [];
+    const regex = /\S+/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      ranges.push({ start: match.index, end: match.index + match[0].length });
+    }
+    return ranges;
+  }
 
   function getComputedInlineStyleFromAncestors(node: Node): string {
     let current: HTMLElement | null = node.parentElement;
@@ -211,7 +196,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     styledWords,
     textHighlight,
     textColor,
-    speakContent,
+    speakTextOnly,
     currentSpeakingIndex,
   }: {
     plainText: string;
@@ -219,7 +204,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     styledWords: { word: string; offset: number; style: string }[];
     textHighlight: string;
     textColor: string;
-    speakContent: (text: string) => void;
+    speakTextOnly: (text: string) => void;
     currentSpeakingIndex: number | null;
   }): React.ReactNode[] {
     const parts: React.ReactNode[] = [];
@@ -232,7 +217,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
 
     ranges.forEach((range, index) => {
       if (current < range.start) {
-        const normalText = plainText.slice(current, range.start);
+        const normalText = plainText?.slice(current, range.start);
         parts.push(
           <span key={`text-${current}`}>
             {renderStyledSegment(normalText, current, styledMap)}
@@ -240,7 +225,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
         );
       }
 
-      const highlightText = plainText.slice(range.start, range.end);
+      const highlightText = plainText?.slice(range.start, range.end);
       const style = parseInlineStyle(styledMap.get(range.start));
       const isSpeakingCurrentWord = index === currentSpeakingIndex;
 
@@ -249,13 +234,16 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           ? parts.push(
               <span
                 key={`highlight-${range.start}`}
-                onClick={() => speakContent(highlightText)}
+                onClick={() => {
+                  if (isSpeakingAllWord) return;
+                  speakTextOnly(highlightText);
+                }}
                 style={{
                   backgroundColor: isSpeakingCurrentWord
                     ? textHighlight
                     : "transparent",
                   color: textColor,
-                  cursor: "pointer",
+                  cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
                   padding: "2px",
                   borderRadius: "3px",
                   ...style,
@@ -267,11 +255,14 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           : parts.push(
               <span
                 key={`highlight-${range.start}`}
-                onClick={() => speakContent(highlightText)}
+                onClick={() => {
+                  if (isSpeakingAllWord) return;
+                  speakTextOnly(highlightText);
+                }}
                 style={{
                   backgroundColor: textHighlight,
                   color: textColor,
-                  cursor: "pointer",
+                  cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
                   padding: "2px",
                   borderRadius: "3px",
                   ...style,
@@ -286,7 +277,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     });
 
     if (current < plainText.length) {
-      const tail = plainText.slice(current);
+      const tail = plainText?.slice(current);
       parts.push(
         <span key={`tail-${current}`}>
           {renderStyledSegment(tail, current, styledMap)}
@@ -296,7 +287,6 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
 
     return parts;
   }
-
   function renderStyledSegment(
     text: string,
     offsetStart: number,
@@ -341,18 +331,24 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
 
   const styledWords = mapStyledWordsFromHtmlToPlainText(
     props.params.contentEditor,
-    props.params.plainText
+    cleanedPlainText
   );
 
   const styledParts = renderFullyStyledText({
-    plainText: props.params.plainText,
+    plainText: cleanedPlainText,
     highlightedRanges: props.params.highlightedRanges,
     styledWords,
     textHighlight: props.params.textHighlight,
     textColor: props.params.textColor,
-    speakContent,
+    speakTextOnly,
     currentSpeakingIndex,
   });
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeakingAllWord(false);
+    setCurrentSpeakingIndex(null);
+  };
 
   return (
     <React.Fragment>
@@ -362,40 +358,51 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
             heightEditor: props.params.heightEditor,
             setContentEditor: props.params.setContentEditor,
             contentEditor: props.params.contentEditor,
-            plainText: props.params.plainText,
+            plainText: cleanedPlainText,
             setPlainText: props.params.setPlainText,
             highlightedRanges: props.params.highlightedRanges,
             setHighlightedRanges: props.params.setHighlightedRanges,
           }}
         />
-        <button
-          onClick={() => {
-            setIsSpeakingAllWord(true);
-            speakHighlighted(
-              props.params.highlightedRanges,
-              props.params.plainText
-            );
-          }}
-          disabled={props.params.highlightedRanges.length <= 0}
-          style={{
-            marginTop: "15px",
-            width: "200px",
-            padding: "10px 20px",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            backgroundColor:
-              props.params.highlightedRanges.length > 0 ? "#ed1c24" : "#ccc",
-            cursor:
-              props.params.highlightedRanges.length > 0
-                ? "pointer"
-                : "not-allowed",
-            opacity: props.params.highlightedRanges.length > 0 ? 1 : 0.6,
-            transition: "all 0.2s ease-in-out",
-          }}
-        >
-          🔊 พูดทุกคำที่ไฮไลต์
-        </button>
+        <div className="flex gap-2 items-center mt-[15px]">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSpeakingAllWord(true);
+              setCurrentSpeakingIndex(null);
+              speakWithHighlight(
+                props.params.highlightedRanges,
+                cleanedPlainText
+              );
+            }}
+            disabled={props.params.highlightedRanges.length <= 0}
+            style={{
+              width: "200px",
+              padding: "10px 20px",
+              color: "white",
+              border: "none",
+              borderRadius: "5px",
+              backgroundColor:
+                props.params.highlightedRanges.length > 0 ? "#ed1c24" : "#ccc",
+              cursor:
+                props.params.highlightedRanges.length > 0
+                  ? "pointer"
+                  : "not-allowed",
+              opacity: props.params.highlightedRanges.length > 0 ? 1 : 0.6,
+              transition: "all 0.2s ease-in-out",
+            }}
+          >
+            🔊 พูดทุกคำที่ไฮไลต์
+          </button>
+          <div
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              stopSpeaking();
+            }}
+          >
+            <RedoOutlined style={{ fontSize: "34px" }} />
+          </div>
+        </div>
 
         <h4>📌 ข้อความที่ถูก Highlight</h4>
         <div
