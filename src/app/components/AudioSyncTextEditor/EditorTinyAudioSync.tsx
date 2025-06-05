@@ -233,7 +233,7 @@ export const EditorTinyAudioSync = observer(
       if (!selectedText.trim()) return;
 
       const { start, end, fullText } = getTextOffsets(editor, range);
-      // setPlainText(fullText);
+      setPlainText(fullText);
 
       // ครอบทั้ง editor (เช่น Ctrl + A)
       const isSelectAll = selectedText.trim() === fullPlainText.trim();
