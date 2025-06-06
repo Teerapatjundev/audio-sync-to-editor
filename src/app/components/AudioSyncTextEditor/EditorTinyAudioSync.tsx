@@ -62,6 +62,9 @@ const mergeHighlightRanges = (
   return newRanges.sort((a, b) => a.start - b.start);
 };
 
+/**
+ * แปลง DOM เป็นข้อความ โดยเดินผ่าน blocks และรวม TEXT_NODE + \n\n ระหว่าง block
+ */
 const getTextFromBlocks = (root: Node | DocumentFragment): string => {
   const blocks = root instanceof DocumentFragment
     ? root.querySelectorAll("p, div")
@@ -91,11 +94,17 @@ const getTextFromBlocks = (root: Node | DocumentFragment): string => {
   return result;
 };
 
+/**
+ * ดึงข้อความจาก Range ที่ผู้ใช้ select โดยคงโครงสร้าง block
+ */
 const extractTextFromRange = (range: Range): string => {
   const fragment = range.cloneContents();
   return getTextFromBlocks(fragment);
 };
 
+/**
+ * สร้าง fullText ทั้งเอกสาร + หาตำแหน่ง start/end ของข้อความที่ถูกเลือก
+ */
 const getTextOffsets = (
   editor: any,
   range: Range
