@@ -62,29 +62,23 @@ const mergeHighlightRanges = (
   return newRanges.sort((a, b) => a.start - b.start);
 };
 
-const extractTextFromRange = (range: Range): string => {
-  const fragment = range.cloneContents();
+const getTextFromBlocks = (root: Node | DocumentFragment): string => {
+  const blocks = root instanceof DocumentFragment
+    ? root.querySelectorAll("p, div")
+    : (root as Element).querySelectorAll("p, div");
 
-  const blocks = fragment.querySelectorAll("p, div");
-  
-  const blockElements = blocks.length ? Array.from(blocks) : [fragment];
-  
+  const blockElements = blocks.length ? Array.from(blocks) : [root];
   let result = "";
 
   for (let i = 0; i < blockElements.length; i++) {
     const block = blockElements[i];
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_ALL);
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
 
     let blockText = "";
 
     while (walker.nextNode()) {
-      const node = walker.currentNode;
-
-      if (node.nodeType === Node.TEXT_NODE) {
-        let text = node.textContent || "";
-        text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-        blockText += text;
-      }
+      const text = walker.currentNode.textContent || "";
+      blockText += text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
     }
 
     result += blockText;
@@ -97,43 +91,19 @@ const extractTextFromRange = (range: Range): string => {
   return result;
 };
 
+const extractTextFromRange = (range: Range): string => {
+  const fragment = range.cloneContents();
+  return getTextFromBlocks(fragment);
+};
+
 const getTextOffsets = (
   editor: any,
   range: Range
 ): { start: number; end: number; fullText: string } => {
   const body = editor.getBody();
-  const blocks = Array.from(body.querySelectorAll("p, div"));
-
-  let fullText = "";
-
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-    const walker = document.createTreeWalker(
-      block as Node,
-      NodeFilter.SHOW_ALL
-    );
-
-    let blockText = "";
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-
-      if (node.nodeType === Node.TEXT_NODE) {
-        let text = node.textContent || "";
-        text = text.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-        blockText += text;
-      }
-    }
-
-    fullText += blockText;
-
-    if (i < blocks.length - 1) {
-      fullText += "\n\n";
-    }
-  }
-
-  // ✅ normalize selection
+  const fullText = getTextFromBlocks(body);
   const selected = extractTextFromRange(range);
+
   const start = fullText.indexOf(selected);
   const end = start + selected.length;
 
