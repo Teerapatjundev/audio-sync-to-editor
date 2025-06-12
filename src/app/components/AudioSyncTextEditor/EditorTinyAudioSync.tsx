@@ -62,13 +62,54 @@ const mergeHighlightRanges = (
   return newRanges.sort((a, b) => a.start - b.start);
 };
 
-/**
- * แปลง DOM เป็นข้อความ โดยเดินผ่าน blocks และรวม TEXT_NODE + \n\n ระหว่าง block
- */
+const getOffsetFromRange = (
+  range: Range,
+  root: HTMLElement
+): { start: number; end: number } => {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL);
+  let startOffset = -1;
+  let endOffset = -1;
+  let globalOffset = 0;
+
+  let lastBlockNode: Node | null = null;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+
+    if (
+      node.nodeType === Node.ELEMENT_NODE &&
+      ["P", "DIV"].includes((node as HTMLElement).tagName)
+    ) {
+      if (lastBlockNode && node !== lastBlockNode) {
+        globalOffset += 2; // \n\n
+      }
+      lastBlockNode = node;
+      continue;
+    }
+
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+
+    const nodeText = node.textContent || "";
+
+    if (node === range.startContainer) {
+      startOffset = globalOffset + range.startOffset;
+    }
+
+    if (node === range.endContainer) {
+      endOffset = globalOffset + range.endOffset;
+    }
+
+    globalOffset += nodeText.length;
+  }
+
+  return { start: startOffset, end: endOffset };
+};
+
 const getTextFromBlocks = (root: Node | DocumentFragment): string => {
-  const blocks = root instanceof DocumentFragment
-    ? root.querySelectorAll("p, div")
-    : (root as Element).querySelectorAll("p, div");
+  const blocks =
+    root instanceof DocumentFragment
+      ? root.querySelectorAll("p, div")
+      : (root as Element).querySelectorAll("p, div");
 
   const blockElements = blocks.length ? Array.from(blocks) : [root];
   let result = "";
@@ -94,27 +135,13 @@ const getTextFromBlocks = (root: Node | DocumentFragment): string => {
   return result;
 };
 
-/**
- * ดึงข้อความจาก Range ที่ผู้ใช้ select โดยคงโครงสร้าง block
- */
-const extractTextFromRange = (range: Range): string => {
-  const fragment = range.cloneContents();
-  return getTextFromBlocks(fragment);
-};
-
-/**
- * สร้าง fullText ทั้งเอกสาร + หาตำแหน่ง start/end ของข้อความที่ถูกเลือก
- */
 const getTextOffsets = (
   editor: any,
   range: Range
 ): { start: number; end: number; fullText: string } => {
   const body = editor.getBody();
   const fullText = getTextFromBlocks(body);
-  const selected = extractTextFromRange(range);
-
-  const start = fullText.indexOf(selected);
-  const end = start + selected.length;
+  const { start, end } = getOffsetFromRange(range, body);
 
   return { start, end, fullText };
 };
