@@ -241,7 +241,6 @@ export const EditorTinyAudioSync = observer(
 
       const { start, end, fullText } = getTextOffsets(editor, range);
       setPlainText(fullText);
-
       // ครอบทั้ง editor (เช่น Ctrl + A)
       const isSelectAll = selectedText.trim() === fullPlainText.trim();
 
@@ -252,7 +251,30 @@ export const EditorTinyAudioSync = observer(
         );
       } else if (start >= 0 && end > start) {
         // กรณีทั่วไป
-        setHighlightedRanges((prev) => mergeHighlightRanges(prev, start, end));
+        setHighlightedRanges((prev) => {
+          let mergedStart = start;
+          let mergedEnd = end;
+
+          const nonOverlapping = [];
+
+          for (const r of prev) {
+            const overlap = !(end <= r.start || start >= r.end);
+            const isContained = r.start >= start && r.end <= end;
+            const containsNew = start >= r.start && end <= r.end;
+
+            if (overlap || isContained || containsNew) {
+              mergedStart = Math.min(mergedStart, r.start);
+              mergedEnd = Math.max(mergedEnd, r.end);
+            } else {
+              nonOverlapping.push(r);
+            }
+          }
+
+          return [
+            ...nonOverlapping,
+            { start: mergedStart, end: mergedEnd },
+          ].sort((a, b) => a.start - b.start);
+        });
       }
     };
 
