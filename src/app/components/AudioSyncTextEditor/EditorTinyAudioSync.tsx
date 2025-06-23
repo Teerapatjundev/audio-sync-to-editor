@@ -78,7 +78,7 @@ const getOffsetFromRange = (
 
     if (
       node.nodeType === Node.ELEMENT_NODE &&
-      ["P", "DIV"].includes((node as HTMLElement).tagName)
+      ["P"].includes((node as HTMLElement).tagName)
     ) {
       if (lastBlockNode && node !== lastBlockNode) {
         globalOffset += 2; // \n\n
@@ -108,8 +108,8 @@ const getOffsetFromRange = (
 const getTextFromBlocks = (root: Node | DocumentFragment): string => {
   const blocks =
     root instanceof DocumentFragment
-      ? root.querySelectorAll("p, div")
-      : (root as Element).querySelectorAll("p, div");
+      ? root.querySelectorAll("p")
+      : (root as Element).querySelectorAll("p");
 
   const blockElements = blocks.length ? Array.from(blocks) : [root];
   let result = "";
