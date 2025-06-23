@@ -218,13 +218,6 @@ export const EditorTinyAudioSync = observer(
       setHighlightedRanges(updatedRanges);
       setPlainText(newPlainText);
       setContentEditor(content);
-
-      // audioSyncPinStore.setHighlightRanges(updatedRanges);
-      // audioSyncPinStore.setPlainText(newPlainText);
-      // audioSyncPinStore.setPinAudioSyncContent(content);
-
-      // audioSyncPinStore.setTextColor(editor.getBody().style.color);
-      // audioSyncPinStore.setHighlightColor(editor.getBody().style.background);
     };
 
     const handleConfirmHighlight = () => {
@@ -258,11 +251,17 @@ export const EditorTinyAudioSync = observer(
           const nonOverlapping = [];
 
           for (const r of prev) {
-            const overlap = !(end <= r.start || start >= r.end);
+            const isExactSame = r.start === start && r.end === end;
+            const isOverlapping = !(end <= r.start || start >= r.end);
             const isContained = r.start >= start && r.end <= end;
             const containsNew = start >= r.start && end <= r.end;
 
-            if (overlap || isContained || containsNew) {
+            if (isExactSame) {
+              // ลบ range ที่ซ้ำแบบ start-end ตรงกัน
+              continue;
+            }
+
+            if (isOverlapping || isContained || containsNew) {
               mergedStart = Math.min(mergedStart, r.start);
               mergedEnd = Math.max(mergedEnd, r.end);
             } else {

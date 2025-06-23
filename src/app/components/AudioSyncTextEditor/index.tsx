@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Fragment, useState } from "react";
 import { EditorTinyAudioSync } from "./EditorTinyAudioSync";
 import { observer } from "mobx-react-lite";
-import { RedoOutlined } from "@ant-design/icons";
+import { CloseCircleOutlined, RedoOutlined } from "@ant-design/icons";
 
 interface AudioSyncTextEditorProps {
   params: {
@@ -38,6 +38,14 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     return "en-US";
   };
   const cleanedPlainText = props.params.plainText.replace(/\r\n/g, "\n");
+
+  const removeRange = (targetRange: { start: number; end: number }) => {
+    props.params.setHighlightedRanges((prev) =>
+      prev.filter(
+        (r) => !(r.start === targetRange.start && r.end === targetRange.end)
+      )
+    );
+  };
 
   const speakTextOnly = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
@@ -253,23 +261,41 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
               </span>
             )
           : parts.push(
-              <span
-                key={`highlight-${range.start}`}
-                onClick={() => {
-                  if (isSpeakingAllWord) return;
-                  speakTextOnly(highlightText);
-                }}
-                style={{
-                  backgroundColor: textHighlight,
-                  color: textColor,
-                  cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
-                  padding: "2px",
-                  borderRadius: "3px",
-                  ...style,
-                }}
-              >
-                {renderStyledSegment(highlightText, range.start, styledMap)} 🔊
-              </span>
+              <Fragment key={`highlight-${range.start}`}>
+                <span
+                  onClick={() => {
+                    if (isSpeakingAllWord) return;
+                    speakTextOnly(highlightText);
+                  }}
+                  style={{
+                    backgroundColor: textHighlight,
+                    color: textColor,
+                    cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
+                    padding: "2px",
+                    borderTopLeftRadius: "3px",
+                    borderBottomLeftRadius: "3px",
+                    ...style,
+                  }}
+                >
+                  {renderStyledSegment(highlightText, range.start, styledMap)}{" "}
+                  🔊
+                </span>
+                <span
+                  style={{
+                    backgroundColor: textHighlight,
+                    color: textColor,
+                    cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
+                    padding: "2px",
+                    borderTopRightRadius: "3px",
+                    borderBottomRightRadius: "3px",
+                  }}
+                  onClick={() => {
+                    removeRange(range);
+                  }}
+                >
+                  <CloseCircleOutlined />
+                </span>
+              </Fragment>
             );
       }
 
