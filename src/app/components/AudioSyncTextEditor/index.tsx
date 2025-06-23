@@ -257,7 +257,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                   ...style,
                 }}
               >
-                {renderStyledSegment(highlightText, range.start, styledMap)} 🔊
+                {highlightText}🔊
               </span>
             )
           : parts.push(
@@ -277,8 +277,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                     ...style,
                   }}
                 >
-                  {renderStyledSegment(highlightText, range.start, styledMap)}{" "}
-                  🔊
+                  {highlightText}🔊
                 </span>
                 <span
                   style={{
