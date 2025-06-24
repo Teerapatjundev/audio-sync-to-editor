@@ -328,6 +328,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                       borderBottomRightRadius: "3px",
                     }}
                     onClick={() => {
+                      stopSpeaking();
                       removeRange(range);
                     }}
                   >
