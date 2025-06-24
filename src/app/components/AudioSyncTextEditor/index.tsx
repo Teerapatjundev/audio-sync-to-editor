@@ -50,6 +50,40 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     );
   };
 
+  const selectBestVoice = async (
+    lang: string
+  ): Promise<SpeechSynthesisVoice | null> => {
+    const voices = await loadVoices(); // 👈 ensure loaded
+
+    const filtered = voices.filter((v) => v.lang === lang);
+
+    const priorityVoices = [
+      (v: SpeechSynthesisVoice) => /Google/.test(v.name),
+      (v: SpeechSynthesisVoice) => /female/i.test(v.name),
+      (v: SpeechSynthesisVoice) => true,
+    ];
+
+    for (const check of priorityVoices) {
+      const match = filtered.find(check);
+      if (match) return match;
+    }
+
+    return null;
+  };
+
+  const loadVoices = (): Promise<SpeechSynthesisVoice[]> => {
+    return new Promise((resolve) => {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length) {
+        resolve(voices);
+      } else {
+        speechSynthesis.onvoiceschanged = () => {
+          resolve(speechSynthesis.getVoices());
+        };
+      }
+    });
+  };
+
   const speakTextOnly = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = detectLanguage(text);
@@ -72,41 +106,50 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     speechSynthesis.speak(utterance);
   };
 
-  const speakWithHighlight = (
+  const speakWithHighlight = async (
     ranges: { start: number; end: number }[],
     text: string
   ) => {
     const slicedParts = ranges.map(({ start, end }) => text.slice(start, end));
     const highlightedText = slicedParts.join(" ");
 
+    const lang = detectLanguage(text);
     const utterance = new SpeechSynthesisUtterance(highlightedText);
-    utterance.lang = detectLanguage(highlightedText);
+    utterance.lang = lang;
 
-    const charRanges = getWordCharRanges(highlightedText);
+    const bestVoice = await selectBestVoice(lang);
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+    }
+    const words = highlightedText.trim().split(/\s+/);
 
     let rangeWordMap: number[] = [];
     slicedParts.forEach((part, rangeIndex) => {
-      const wordCount = part.trim().split(/\s+/).length;
-      for (let i = 0; i < wordCount; i++) {
+      const partWords = part.trim().split(/\s+/).length;
+      for (let i = 0; i < partWords; i++) {
         rangeWordMap.push(rangeIndex);
       }
     });
 
-    utterance.onboundary = (event) => {
-      if (event.name === "word") {
-        const charIndex = event.charIndex;
-        const wordIndex = charRanges.findIndex(
-          ({ start, end }) => charIndex >= start && charIndex < end
-        );
-
-        if (wordIndex !== -1 && wordIndex < rangeWordMap.length) {
-          const rangeIndex = rangeWordMap[wordIndex];
-          setCurrentSpeakingIndex(rangeIndex);
-        }
+    let wordIndex = 0;
+    const wordDuration = 350;
+    const interval = setInterval(() => {
+      if (wordIndex >= words.length) {
+        clearInterval(interval);
+        setCurrentSpeakingIndex(null);
+        return;
       }
-    };
+
+      const rangeIndex = rangeWordMap[wordIndex];
+      if (rangeIndex !== undefined) {
+        setCurrentSpeakingIndex(rangeIndex);
+      }
+
+      wordIndex++;
+    }, wordDuration);
 
     utterance.onend = () => {
+      clearInterval(interval);
       setIsSpeakingAllWord(false);
       setCurrentSpeakingIndex(null);
     };
@@ -282,21 +325,23 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                 >
                   {highlightText}🔊
                 </span>
-                <span
-                  style={{
-                    backgroundColor: textHighlight,
-                    color: textColor,
-                    cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
-                    padding: "2px",
-                    borderTopRightRadius: "3px",
-                    borderBottomRightRadius: "3px",
-                  }}
-                  onClick={() => {
-                    removeRange(range);
-                  }}
-                >
-                  <CloseCircleOutlined />
-                </span>
+                {highlightText.length > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: textHighlight,
+                      color: textColor,
+                      cursor: isSpeakingAllWord ? "not-allowed" : "pointer",
+                      padding: "2px",
+                      borderTopRightRadius: "3px",
+                      borderBottomRightRadius: "3px",
+                    }}
+                    onClick={() => {
+                      removeRange(range);
+                    }}
+                  >
+                    <CloseCircleOutlined />
+                  </span>
+                )}
               </Fragment>
             );
       }
