@@ -53,13 +53,25 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
   const selectBestVoice = async (
     lang: string
   ): Promise<SpeechSynthesisVoice | null> => {
-    const voices = await loadVoices(); // 👈 ensure loaded
+    const voices = await loadVoices();
 
     const filtered = voices.filter((v) => v.lang === lang);
 
+    const knownFemaleNames = [
+      "Google UK English Female",
+      "Google US English Female",
+      "Samantha",
+      "Zira",
+      "Eva",
+      "Microsoft Eva Mobile",
+    ];
+
     const priorityVoices = [
-      (v: SpeechSynthesisVoice) => /Google/.test(v.name),
+      (v: SpeechSynthesisVoice) => knownFemaleNames.includes(v.name),
       (v: SpeechSynthesisVoice) => /female/i.test(v.name),
+      (v: SpeechSynthesisVoice) =>
+        /(Samantha|Zira|Eva|Susan|Karen)/i.test(v.name),
+      (v: SpeechSynthesisVoice) => /Google/.test(v.name),
       (v: SpeechSynthesisVoice) => true,
     ];
 
