@@ -34,9 +34,12 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
   >(null);
   const [isSpeakingAllWord, setIsSpeakingAllWord] = useState(false);
 
-  const detectLanguage = (_text: string): string => {
-    return "en-US";
+  const detectLanguage = (word: string): string => {
+    if (/[\u0E00-\u0E7F]/.test(word)) return "th-TH"; // Thai
+    if (/[\u4E00-\u9FFF]/.test(word)) return "zh-CN"; // Chinese
+    return "en-US"; // Default to English
   };
+
   const cleanedPlainText = props.params.plainText.replace(/\r\n/g, "\n");
 
   const removeRange = (targetRange: { start: number; end: number }) => {
