@@ -84,23 +84,15 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     });
   };
 
-  const speakTextOnly = (text: string) => {
+  const speakTextOnly = async (text: string) => {
+    const lang = detectLanguage(text);
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = detectLanguage(text);
+    utterance.lang = lang;
 
-    const charRanges = getWordCharRanges(text);
-
-    utterance.onboundary = (event) => {
-      if (event.name === "word") {
-        const charIndex = event.charIndex;
-        const wordIndex = charRanges.findIndex(
-          ({ start, end }) => charIndex >= start && charIndex < end
-        );
-        if (wordIndex !== -1) {
-          setCurrentSpeakingIndex(wordIndex);
-        }
-      }
-    };
+    const bestVoice = await selectBestVoice(lang);
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+    }
 
     speechSynthesis.cancel();
     speechSynthesis.speak(utterance);
