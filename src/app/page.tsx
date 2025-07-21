@@ -14,7 +14,7 @@ export default function Home() {
   return (
     <main className="bg-[blue] flex min-h-screen flex-col items-center justify-between p-24">
       <div className="flex flex-col z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <h1 className="text-white mb-4">ทดสอบ 14</h1>
+        <h1 className="text-white mb-4">ทดสอบ 15</h1>
         <AudioSyncTextEditor
           params={{
             heightEditor: 524,

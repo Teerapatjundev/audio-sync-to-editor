@@ -4,6 +4,7 @@ import React, { Fragment, useState } from "react";
 import { EditorTinyAudioSync } from "./EditorTinyAudioSync";
 import { observer } from "mobx-react-lite";
 import { CloseCircleOutlined, RedoOutlined } from "@ant-design/icons";
+import { Select } from "antd";
 
 interface AudioSyncTextEditorProps {
   params: {
@@ -28,11 +29,28 @@ interface StyledWord {
   offset: number;
 }
 
+const { Option } = Select;
+
+const rateOptions = [
+  { label: "0.5", value: 0.5 },
+  { label: "0.75", value: 0.75 },
+  { label: "ปกติ", value: 1 },
+  { label: "1.25", value: 1.25 },
+  { label: "1.5", value: 1.5 },
+  { label: "1.75", value: 1.75 },
+  { label: "2", value: 2 },
+];
+
 const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState<
     number | null
   >(null);
   const [isSpeakingAllWord, setIsSpeakingAllWord] = useState(false);
+  const [rate, setRate] = useState<number>(1);
+
+  const handleChange = (value: number) => {
+    setRate(value);
+  };
 
   const detectLanguage = (word: string): string => {
     if (/[\u0E00-\u0E7F]/.test(word)) return "th-TH"; // Thai
@@ -100,11 +118,26 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     const lang = detectLanguage(text);
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
+    utterance.rate = rate;
 
     const bestVoice = await selectBestVoice(lang);
     if (bestVoice) {
       utterance.voice = bestVoice;
     }
+
+    // const charRanges = getWordCharRanges(text);
+
+    // utterance.onboundary = (event) => {
+    //   if (event.name === "word") {
+    //     const charIndex = event.charIndex;
+    //     const wordIndex = charRanges.findIndex(
+    //       ({ start, end }) => charIndex >= start && charIndex < end
+    //     );
+    //     if (wordIndex !== -1) {
+    //       setCurrentSpeakingIndex(wordIndex);
+    //     }
+    //   }
+    // };
 
     speechSynthesis.cancel();
     speechSynthesis.speak(utterance);
@@ -120,45 +153,89 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     const lang = detectLanguage(text);
     const utterance = new SpeechSynthesisUtterance(highlightedText);
     utterance.lang = lang;
+    utterance.rate = rate;
 
     const bestVoice = await selectBestVoice(lang);
     if (bestVoice) {
       utterance.voice = bestVoice;
     }
-    const words = highlightedText.trim().split(/\s+/);
 
-    let rangeWordMap: number[] = [];
-    slicedParts.forEach((part, rangeIndex) => {
-      const partWords = part.trim().split(/\s+/).length;
-      for (let i = 0; i < partWords; i++) {
-        rangeWordMap.push(rangeIndex);
-      }
-    });
+    setIsSpeakingAllWord(true);
+    speechSynthesis.cancel();
 
-    let wordIndex = 0;
-    const wordDuration = 350;
-    const interval = setInterval(() => {
-      if (wordIndex >= words.length) {
-        clearInterval(interval);
-        setCurrentSpeakingIndex(null);
-        return;
-      }
-
-      const rangeIndex = rangeWordMap[wordIndex];
-      if (rangeIndex !== undefined) {
-        setCurrentSpeakingIndex(rangeIndex);
-      }
-
-      wordIndex++;
-    }, wordDuration);
-
-    utterance.onend = () => {
-      clearInterval(interval);
+    const isChinese = lang.startsWith("zh");
+    const resetState = () => {
       setIsSpeakingAllWord(false);
       setCurrentSpeakingIndex(null);
     };
 
-    speechSynthesis.cancel();
+    utterance.onerror = resetState;
+    utterance.onend = resetState;
+
+    // CASE 1: Chinese (no onboundary support)
+    if (isChinese) {
+      const segmenter = new Intl.Segmenter("zh", { granularity: "word" });
+      const segments = Array.from(segmenter.segment(highlightedText));
+      const totalWords = segments.length;
+
+      // สร้าง map: แต่ละ segment อยู่ในช่วง range ไหน
+      let rangeWordMap: number[] = [];
+      slicedParts.forEach((part, rangeIndex) => {
+        const len = Array.from(segmenter.segment(part)).length;
+        for (let i = 0; i < len; i++) {
+          rangeWordMap.push(rangeIndex);
+        }
+      });
+
+      let wordIndex = 0;
+      const interval = setInterval(() => {
+        if (wordIndex >= totalWords) {
+          clearInterval(interval);
+          setCurrentSpeakingIndex(null);
+          return;
+        }
+        const rangeIndex = rangeWordMap[wordIndex];
+        if (rangeIndex !== undefined) {
+          setCurrentSpeakingIndex(rangeIndex);
+        }
+        wordIndex++;
+      }, 500);
+
+      utterance.onend = () => {
+        clearInterval(interval);
+        resetState();
+      };
+      utterance.onerror = () => {
+        clearInterval(interval);
+        resetState();
+      };
+
+      speechSynthesis.speak(utterance);
+      return;
+    }
+
+    // CASE 2: Non-Chinese — use onboundary
+    let rangeCharMap: { start: number; end: number; index: number }[] = [];
+    let runningIndex = 0;
+    slicedParts.forEach((part, index) => {
+      const start = runningIndex;
+      const end = start + part.length;
+      rangeCharMap.push({ start, end, index });
+      runningIndex = end + 1; // space between
+    });
+
+    utterance.onboundary = (event) => {
+      if (event.name === "word") {
+        const charIndex = event.charIndex;
+        const found = rangeCharMap.find(
+          ({ start, end }) => charIndex >= start && charIndex < end
+        );
+        if (found) {
+          setCurrentSpeakingIndex(found.index);
+        }
+      }
+    };
+
     speechSynthesis.speak(utterance);
   };
 
@@ -472,6 +549,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           >
             🔊 พูดทุกคำที่ไฮไลต์
           </button>
+
           <div
             style={{ cursor: "pointer" }}
             onClick={() => {
@@ -480,6 +558,19 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           >
             <RedoOutlined style={{ fontSize: "34px" }} />
           </div>
+          <span>ความเร็วในการเล่น:</span>
+          <Select
+            defaultValue={1}
+            style={{ width: 120 }}
+            onChange={handleChange}
+            value={rate}
+          >
+            {rateOptions.map((opt) => (
+              <Option key={opt.value} value={opt.value}>
+                {opt.label}
+              </Option>
+            ))}
+          </Select>
         </div>
 
         <h4>📌 ข้อความที่ถูก Highlight</h4>
