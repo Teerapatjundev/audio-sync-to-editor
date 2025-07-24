@@ -391,7 +391,9 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                 key={`highlight-${range.start}`}
                 onClick={() => {
                   if (isSpeakingAllWord) return;
-                  speakTextOnly(highlightText);
+                  // speakTextOnly(highlightText);
+                  // setIsSpeakingOnlyAudio(true);
+                  speakOnlyAudio(index);
                 }}
                 style={{
                   backgroundColor: isSpeakingCurrentWord
@@ -404,7 +406,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                   color: textColor,
                 }}
               >
-                {renderStyledSegment(highlightText, current, styledMap)}🔊
+                {renderStyledSegment(highlightText, current, styledMap)}🔊5
               </span>
             )
           : parts.push(
@@ -413,6 +415,8 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                   onClick={() => {
                     if (isSpeakingAllWord) return;
                     speakTextOnly(highlightText);
+                    // setIsSpeakingOnlyAudio(true);
+                    // speakOnlyAudio(index);
                   }}
                   style={{
                     backgroundColor: textHighlight,
@@ -532,6 +536,53 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
   const controller = useRef<HTMLAudioElement | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSpeakingOnlyAudio, setIsSpeakingOnlyAudio] = useState(false);
+
+  const speakOnlyAudio = (index: number) => {
+    const range = rangeAudio[index];
+    if (!range || !range.audio) return;
+
+    // 🔁 หยุดเสียงก่อนหน้า (ถ้ามี)
+    if (controller.current) {
+      controller.current.pause();
+      controller.current.currentTime = 0;
+      controller.current = null;
+      setIsPlaying(false);
+      setIsPaused(false);
+    }
+
+    const audio = new Audio(range.audio);
+    audio.playbackRate = rate;
+    controller.current = audio;
+
+    setCurrentSpeakingIndex(index); // ✅ Highlight index
+
+    audio.onended = () => {
+      setIsPlaying(false);
+      setIsPaused(false);
+      setIsSpeakingOnlyAudio(false);
+      setCurrentSpeakingIndex(null);
+    };
+
+    audio.onerror = () => {
+      setIsPlaying(false);
+      setIsPaused(false);
+      setIsSpeakingOnlyAudio(false);
+      setCurrentSpeakingIndex(null);
+    };
+
+    audio.onpause = () => {
+      setIsPlaying(false);
+      setIsPaused(true);
+    };
+
+    audio.onplay = () => {
+      setIsPlaying(true);
+      setIsPaused(false);
+    };
+
+    audio.play();
+  };
 
   const speakAudioRanges = (ranges: AudioRange[], onComplete?: () => void) => {
     if (!ranges || ranges.length === 0) return;
@@ -650,7 +701,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
           {!isPlaying ? (
             <button
               onClick={() => {
-                if (!isSpeakingAllWord) {
+                if (!isSpeakingAllWord && !isSpeakingOnlyAudio) {
                   setIsSpeakingAllWord(true);
                   setCurrentSpeakingIndex(null);
                   speakAudioRanges(rangeAudio, () => console.log("พูดจบแล้ว"));
@@ -682,6 +733,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                 controller.current = null;
                 setIsPaused(false);
                 setIsSpeakingAllWord(false);
+                setIsSpeakingOnlyAudio(false);
                 setCurrentSpeakingIndex(null);
               }
             }}
