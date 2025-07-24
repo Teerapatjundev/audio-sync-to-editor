@@ -193,6 +193,8 @@ export const EditorTinyAudioSync = observer(
       // 2. อัปเดต highlightedRanges
       const updatedRanges = highlightedRanges
         .map((range) => {
+          // ✅ ถ้าไม่มีการเปลี่ยนแปลงจริง ไม่ต้องทำอะไร
+          if (oldText === newText) return range;
           // ถ้าถูกลบหรือแก้ตรงช่วงที่ไฮไลต์ไว้
           if (
             (diffStart <= range.start && range.start <= oldEnd) ||
