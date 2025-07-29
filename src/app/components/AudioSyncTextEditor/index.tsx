@@ -164,6 +164,8 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
     speechSynthesis.speak(utterance);
   };
 
+  console.log("t");
+
   const speakWithHighlight = async (
     ranges: { start: number; end: number }[],
     text: string
