@@ -408,7 +408,7 @@ const AudioSyncTextEditor = (props: AudioSyncTextEditorProps) => {
                   color: textColor,
                 }}
               >
-                {renderStyledSegment(highlightText, current, styledMap)}🔊5
+                {renderStyledSegment(highlightText, current, styledMap)}🔊
               </span>
             )
           : parts.push(
